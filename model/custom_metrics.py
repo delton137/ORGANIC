@@ -101,7 +101,7 @@ def batch_creativity(smiles, train_smiles):
 
 def batch_symmetry(smiles, train_smiles=None):
     """
-    Yields 1.0 if the generated molecule has 
+    Yields 1.0 if the generated molecule has
     any element of symmetry, and 0.0 if the point group is C1.
     """
     vals = [apply_to_valid(s, symmetry) for s in smiles]
@@ -113,8 +113,8 @@ def batch_logP(smiles, train_smiles=None):
     coefficient, using RDkit's implementation of Wildman-Crippen method,
     and then remaps it to the 0.0-1.0 range.
 
-    Wildman, S. A., & Crippen, G. M. (1999). 
-    Prediction of physicochemical parameters by atomic contributions. 
+    Wildman, S. A., & Crippen, G. M. (1999).
+    Prediction of physicochemical parameters by atomic contributions.
     Journal of chemical information and computer sciences, 39(5), 868-873.
     """
     vals = [apply_to_valid(s, logP) for s in smiles]
@@ -122,7 +122,7 @@ def batch_logP(smiles, train_smiles=None):
 
 def batch_conciseness(smiles, train_smiles=None):
     """
-    This metric penalizes SMILES strings that are too long, 
+    This metric penalizes SMILES strings that are too long,
     assuming that the canonical representation is the shortest.
     """
     vals = [conciseness(s) if verify_sequence(s) else 0 for s in smiles]
@@ -162,8 +162,8 @@ def batch_beauty(smiles, train_smiles=None):
     """
     Computes chemical beauty.
 
-    Bickerton, G. R., Paolini, G. V., Besnard, J., Muresan, S., & Hopkins, A. L. (2012). 
-    Quantifying the chemical beauty of drugs. 
+    Bickerton, G. R., Paolini, G. V., Besnard, J., Muresan, S., & Hopkins, A. L. (2012).
+    Quantifying the chemical beauty of drugs.
     Nature chemistry, 4(2), 90-98.
     """
     vals = [apply_to_valid(s, chemical_beauty) for s in smiles]
@@ -246,7 +246,7 @@ def batch_bandgap(smiles, train_smiles=None, cnn=None):
 
 def batch_mp(smiles, train_smiles=None, cnn=None):
     """
-    Melting point as computed by a neural network acting on 
+    Melting point as computed by a neural network acting on
     Morgan fingerprints.
     """
     if cnn == None:
@@ -596,7 +596,10 @@ def getSymmetry(ids, xyz):
 
 
 def logP(mol, train_smiles=None):
-    val = Crippen.MolLogP(mol)
+    try:
+        val = Crippen.MolLogP(mol)
+    except ValueError:
+        val = 0
     return val
 
 def SA_score(mol, SA_model):
