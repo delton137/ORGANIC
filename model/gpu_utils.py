@@ -28,14 +28,17 @@ def list_available_gpus():
     Returns list of available GPU ids.
     """
     output = run_command("nvidia-smi -L")
-    # lines of the form GPU 0: TITAN X
-    gpu_regex = re.compile(r"GPU (?P<gpu_id>\d+):")
-    result = []
-    for line in output.strip().split("\n"):
-        m = gpu_regex.match(line)
-        assert m, "Couldnt parse " + line
-        result.append(int(m.group("gpu_id")))
-    return result
+    if (output == ''):
+        return ''
+    else
+        # lines of the form GPU 0: TITAN X
+        gpu_regex = re.compile(r"GPU (?P<gpu_id>\d+):")
+        result = []
+        for line in output.strip().split("\n"):
+            m = gpu_regex.match(line)
+            assert m, "Couldnt parse " + line
+            result.append(int(m.group("gpu_id")))
+        return result
 
 def gpu_memory_map():
     """
