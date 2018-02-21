@@ -30,7 +30,7 @@ def list_available_gpus():
     output = run_command("nvidia-smi -L")
     if (output == ''):
         return ''
-    else
+    else:
         # lines of the form GPU 0: TITAN X
         gpu_regex = re.compile(r"GPU (?P<gpu_id>\d+):")
         result = []
