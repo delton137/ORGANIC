@@ -4,7 +4,7 @@ DISCRIMINATOR
 ====================
 
 This module is left barely untouched from Gabriel Guimaraes and
-Benjamin Sanchez-Lengeling original implementation 
+Benjamin Sanchez-Lengeling original implementation
 (http://github.com/gablg1/ORGAN).
 
 The code was initially borrowed from the following two sources:
@@ -16,7 +16,7 @@ The code was initially borrowed from the following two sources:
 
 import tensorflow as tf
 from builtins import range
-from tensorflow.contrib.rnn.python.ops import core_rnn_cell
+from tf.contrib.rnn import core_rnn_cell
 
 def highway(input_, size, layer_size=1, bias=-2, f=tf.nn.relu):
     """Highway Network (cf. http://arxiv.org/abs/1505.00387).
