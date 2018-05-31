@@ -14,7 +14,7 @@ dependencies:
 - scipy
 - pandas
 - rdkit
-- tensorflow==1.0
+- tensorflow==1.4
 - keras
 - pymatgen
 - pip

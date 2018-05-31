@@ -1,10 +1,10 @@
 """
-        ___  __    ___   _        __ _____  ___ 
+        ___  __    ___   _        __ _____  ___
        /___\/__\  / _ \ /_\    /\ \ \\_   \/ __\
-      //  // \// / /_\///_\\  /  \/ / / /\/ /   
-     / \_// _  \/ /_\\/  _  \/ /\  /\/ /_/ /___ 
-     \___/\/ \_/\____/\_/ \_/\_\ \/\____/\____/ 
-                                                
+      //  // \// / /_\///_\\  /  \/ / / /\/ /
+     / \_// _  \/ /_\\/  _  \/ /\  /\/ /_/ /___
+     \___/\/ \_/\____/\_/ \_/\_\ \/\____/\____/
+
 ================================================================
 
 ORGANIC is an efficient molecular discovery tool, able to create
@@ -23,16 +23,17 @@ and Chemical Biology, at the time of release.
 from __future__ import absolute_import, division, print_function
 import os
 from gpu_utils import pick_gpu_lowest_memory
-try:
-    gpu_free_number = str(pick_gpu_lowest_memory())
-    os.environ['CUDA_VISIBLE_DEVICES'] = '{}'.format(gpu_free_number)
-    import tensorflow as tf
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    from keras import backend as K
-except Exception:
-    import tensorflow as tf
-    from keras import backend as K
+'''
+gpu_free_number = str(pick_gpu_lowest_memory())
+os.environ['CUDA_VISIBLE_DEVICES'] = '{}'.format(gpu_free_number)
+import tensorflow as tf
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+from keras import backend as K
+'''
+import tensorflow as tf
+from keras import backend as K
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 from nn_metrics import KerasNN
 #from gp_metrics import GaussianProcess
 from builtins import range
@@ -54,12 +55,12 @@ __version__ = '0.4.0'
 
 __logo__ = """
 ################################################################
-         ___  __    ___   _        __ _____  ___ 
+         ___  __    ___   _        __ _____  ___
         /___\\/__\\  / _ \\ /_\\    /\\ \\ \\_   \\/ __\\
-       //  // \\// / /_\\///_\\  /  \\/ / / /\\/ /   
-      / \\_// _  \\/ /_\\/  _  \\/ /\\  /\\/ /_/ /___ 
-      \\___/\\/ \\_/\\____/\\_/ \\_/\\_\\ \\/\\____/\\____/ 
-                                           
+       //  // \\// / /_\\///_\\  /  \\/ / / /\\/ /
+      / \\_// _  \\/ /_\\/  _  \\/ /\\  /\\/ /_/ /___
+      \\___/\\/ \\_/\\____/\\_/ \\_/\\_\\ \\/\\____/\\____/
+
                                               version {}
 ################################################################\n\n\n\n"""
 

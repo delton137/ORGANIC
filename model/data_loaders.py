@@ -10,7 +10,7 @@ only added documentation.
 The code was initially borrowed from the SeqGAN code:
 
     https://github.com/LantaoYu/SeqGAN
-    
+
 """
 
 
