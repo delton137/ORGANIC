@@ -16,7 +16,8 @@ The code was initially borrowed from the following two sources:
 
 import tensorflow as tf
 from builtins import range
-from tensorflow.python.ops import rnn_cell_impl as core_rnn_cell
+from tensorflow.python.ops import rnn_cell_impl as core_rnn_cell #tensorflow
+#from tensorflow.contrib import rnn_cell as core_rnn_cell #tensorflow-gpu
 
 def highway(input_, size, layer_size=1, bias=-2, f=tf.nn.relu):
     """Highway Network (cf. http://arxiv.org/abs/1505.00387).

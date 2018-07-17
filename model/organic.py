@@ -900,10 +900,12 @@ class ORGANIC(object):
 
             if not os.path.exists(ckpt_dir):
                 os.makedirs(ckpt_dir)
+
             ckpt_file = os.path.join(ckpt_dir,
                                      '{}_pretrain_ckpt'.format(self.PREFIX))
             saver = tf.train.Saver()
             path = saver.save(self.sess, ckpt_file)
+
             if self.verbose:
                 print('Pretrain saved at {}'.format(path))
 
@@ -963,8 +965,7 @@ class ORGANIC(object):
             print('============================\n')
 
             # results
-            mm.compute_results(
-                gen_samples, self.train_samples, self.ord_dict, results)
+            mm.compute_results(gen_samples, self.train_samples, self.ord_dict, results, nbatch=nbatch)
 
             for it in range(self.GEN_ITERATIONS):
                 samples = self.generator.generate(self.sess)
@@ -974,7 +975,7 @@ class ORGANIC(object):
                 nll = self.generator.generator_step(
                     self.sess, samples, rewards)
 
-                print('Rewards')
+                print('Rewards for ', self.EDUCATION[nbatch])
                 print('~~~~~~~~~~~~~~~~~~~~~~~~\n')
                 np.set_printoptions(precision=3, suppress=True)
                 mean_r, std_r = np.mean(rewards), np.std(rewards)

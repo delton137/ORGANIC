@@ -1,2 +1,2 @@
-model_checkpoint_path: "energetics_test_pretrain_ckpt"
-all_model_checkpoint_paths: "energetics_test_pretrain_ckpt"
+model_checkpoint_path: "energetics_test9_pretrain_ckpt"
+all_model_checkpoint_paths: "energetics_test9_pretrain_ckpt"

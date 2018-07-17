@@ -19,6 +19,14 @@ import csv
 import numpy as np
 from rdkit.Chem import AllChem as Chem
 from rdkit.Chem import MolFromSmiles, MolToSmiles
+from rdkit.Chem import rdDepictor
+from rdkit.Chem.Draw import rdMolDraw2D, MolsToGridImage
+from rdkit.Chem import PandasTools
+from matplotlib.pyplot import imshow
+import matplotlib.pyplot as plt
+import pandas as pd
+import sascorer
+
 
 """ DATA I/O """
 
@@ -48,7 +56,7 @@ def read_smiles_csv(filename):
 
     Note
     -----------
-        
+
         This function will assume that the SMILES are
         in column 0.
 
@@ -139,7 +147,7 @@ def remap(x, x_min, x_max):
     -----------
 
         If x > x_max or x < x_min, the value will be outside
-        of the [0, 1] interval. 
+        of the [0, 1] interval.
 
     """
 
@@ -260,8 +268,15 @@ def verified_and_below(smile, max_len):
 def verify_sequence(smile):
     """Returns True if the SMILES string is valid and
     its length is less than max_len."""
+
     mol = Chem.MolFromSmiles(smile)
-    return smile != '' and mol is not None and mol.GetNumAtoms() > 1
+
+    #try:
+    #    Chem.AddHs(mol) #added by D.C. Elton, checks valence bonding is correct
+    #except:
+    #    mol = None
+
+    return (smile != '') and (mol is not None) and (mol.GetNumAtoms() > 1)
 
 def apply_to_valid(smile, fun, **kwargs):
     """Returns fun(smile, **kwargs) if smiles is a valid
@@ -288,7 +303,7 @@ def build_vocab(smiles, pad_char='_', start_char='^'):
 
     Returns
     -----------
-        
+
         - char_dict. Dictionary which maps a given character
         to a number
 
@@ -314,21 +329,21 @@ def pad(smile, n, pad_char='_'):
         return smile
     return smile + pad_char * (n - len(smile))
 
-def unpad(smile, pad_char='_'): 
+def unpad(smile, pad_char='_'):
     """Removes the padding of a string"""
     return smile.rstrip(pad_char)
 
-def encode(smile, max_len, char_dict): 
+def encode(smile, max_len, char_dict):
     """Encodes a SMILES string using the previously built
     vocabulary."""
     return [char_dict[c] for c in pad(smile, max_len)]
 
-def decode(ords, ord_dict): 
+def decode(ords, ord_dict):
     """Decodes a SMILES string using the previously built
     vocabulary."""
     return unpad(''.join([ord_dict[o] for o in ords]))
 
-def compute_results(model_samples, train_data, ord_dict, results={}, verbose=True):
+def compute_results(model_samples, train_data, ord_dict, results={}, verbose=True, nbatch=None):
     samples = [decode(s, ord_dict) for s in model_samples]
     results['mean_length'] = np.mean([len(sample) for sample in samples])
     results['n_samples'] = len(samples)
@@ -348,10 +363,14 @@ def compute_results(model_samples, train_data, ord_dict, results={}, verbose=Tru
         save_smi(smi_name, samples)
         results['model_samples'] = smi_name
     if verbose:
-        print_results(verified_samples, unverified_samples, results)
+        print_results(verified_samples, unverified_samples, results, nbatch=nbatch)
     return
 
-def print_results(verified_samples, unverified_samples, results={}):
+#----------------------------------------------------------------------------------------
+def print_results(verified_samples, unverified_samples, results={}, nbatch=None):
+    from mmltoolkit.featurizations import Estate_CDS_SoB_featurizer
+    import pickle
+
     print('Summary of the epoch')
     print('~~~~~~~~~~~~~~~~~~~~~~~~\n')
     print('{:15s} : {:6d}'.format("Total samples", results['n_samples']))
@@ -370,8 +389,77 @@ def print_results(verified_samples, unverified_samples, results={}):
     if len(verified_samples) > 10:
         for s in verified_samples[0:10]:
             print('' + s)
-    else:
-        print('No good samples were found :(...')
+
+    #---------------------------------------------------------------------------------------
+    #-------- additional code from D.C. Elton to print visualizations and generated SMILES
+    #---------------------------------------------------------------------------------------
+
+    num_verified = len(verified_samples)
+
+    assert (num_verified == results['good_samples'])
+
+
+    #--------------- construct dataframe to store property data ------------------------
+    data = pd.DataFrame({'smiles' : verified_samples})
+    data['Mols'] = data['smiles'].apply(Chem.MolFromSmiles)
+    data['SA'] = data['Mols'].apply(sascorer.calculateScore)
+    data['SA'] = data['SA'].apply(lambda x: np.round(x,2))
+
+    model_det_vel = pickle.load(open('model_KRR_Estate_CDS_SoB_det_V_425_mols.pkl', 'rb'))
+    model_det_press = pickle.load(open('model_KRR_Estate_CDS_SoB_det_P_425_mols.pkl', 'rb'))
+    model_dens = pickle.load(open('model_KRR_Estate_CDS_SoB_density_425_mols.pkl', 'rb'))
+
+    bond_names = pickle.load(open('bond_names.pkl', 'rb'))
+
+    X_Estate_CDS_SoB = Estate_CDS_SoB_featurizer(list(data['Mols']),
+                    predefined_bond_types=bond_names, scaled=False, return_names=False)
+
+    pred_det_vels = model_det_vel.predict(X_Estate_CDS_SoB)
+    pred_det_press = model_det_press.predict(X_Estate_CDS_SoB)
+    pred_dens = model_dens.predict(X_Estate_CDS_SoB)
+
+    pred_det_vels = np.round(pred_det_vels,2)
+    pred_det_press = np.round(pred_det_press, 2)
+    pred_dens = np.round(pred_dens,2)
+
+    oxygen_balance_100s = X_Estate_CDS_SoB[:,31] #in this particular case, OB100
+
+    data['det. V (km/s)'] = pred_det_vels
+    data['det. P (km/s)'] = pred_det_press
+    data['density (g/cm^3)'] = pred_dens
+
+    data['Oxygen balance 100'] = oxygen_balance_100s
+    data['Oxygen balance 100'] = data['Oxygen balance 100'].apply(lambda x: np.round(x,2))
+
+    #save dataframe to .csv
+    data.drop(columns=['Mols']).to_csv(str(nbatch)+'_verified_mols.csv')
+
+    #make legend string for figures
+    data['legend_string'] = data['SA']
+
+    for j in range(len(data['legend_string'])):
+        data['legend_string'].iloc[j] =  'OB-100 = '+str(oxygen_balance_100s[j])+'\nSA ='+str(data['SA'].iloc[j])+'\nDet. V.= '+str(pred_det_vels[j])+" km/s"+'\nDet P.= '+str(pred_det_press[j])
+
+    #--------------- plotting ---------------------------------------------
+    num_to_plot = 30
+
+    if (num_to_plot > len(verified_samples)):
+        num_to_plot = len(verified_samples)
+
+    for i in range(num_to_plot//10):
+        #important - add hydrogens!!
+        #data['Mols'] = data['Mols'].apply(Chem.AddHs)
+        #fig = plt.figure(figsize=(200,20))
+        #plt.clf()
+        #thisax = plt.gca()
+        PIL_image = PandasTools.FrameToGridImage(data.iloc[i*10:(i+1)*10,:], column='Mols', molsPerRow=5, legendsCol='legend_string')
+        PIL_image.save('GAN_output_batch_'+str(nbatch)+'_'+str(i*10)+"-"+str((i+1)*10)+'.png')
+        #ax = thisax.imshow(PIL_image)
+        #plt.title(str(groups[i]).strip(), fontsize=175)
+        #plt.yticks([])
+        #plt.xticks([])
+        #plt.title("batch "+str(nbatch)+' '+str(i*10)+"-"+str((i+1)*10),fontsize=35)
+        #plt.savefig('GAN_output_batch_'+str(nbatch)+'_'+str(i*10)+"-"+str((i+1)*10)+'.png')
 
     print('\nSome bad samples:')
     print('~~~~~~~~~~~~~~~~~~~~~~~~\n')
@@ -382,4 +470,3 @@ def print_results(verified_samples, unverified_samples, results={}):
         print('No bad samples were found :D!')
 
     return
-

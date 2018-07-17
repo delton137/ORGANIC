@@ -17,11 +17,34 @@ from math import exp, log
 from collections import OrderedDict
 from nn_metrics import KerasNN
 #from gp_metrics import GaussianProcess
+from mmltoolkit.featurizations import Estate_CDS_SoB_featurizer
 from mol_methods import *
 
 """
 Metrics
 """
+def is_energetic(smiles, train_smiles=None, model=None):
+    """
+    Assigns 1.0 if SMILES is predicted to be energetic, and 0.0
+    otherwise
+    """
+    if model == None:
+        raise ValueError('The energetics classifier was improperly loaded.')
+    fsmiles = []
+    zeroindex = []
+    for k, sm in enumerate(smiles):
+        if verify_sequence(sm):
+            fsmiles.append(sm)
+        else:
+            fsmiles.append('c1ccccc1')
+            zeroindex.append(k)
+    vals = np.asarray(cnn.predict(fsmiles))
+    for k in zeroindex:
+        vals[k] = 0.0
+    vals = np.squeeze(np.stack(vals, axis=1))
+
+    return vals
+
 
 
 def batch_validity(smiles, train_smiles=None):
@@ -39,8 +62,7 @@ def batch_diversity(smiles, train_smiles):
     """
     rand_smiles = random.sample(train_smiles, 100)
     rand_mols = [MolFromSmiles(s) for s in rand_smiles]
-    fps = [Chem.GetMorganFingerprintAsBitVect(
-        m, 4, nBits=2048) for m in rand_mols]
+    fps = [Chem.GetMorganFingerprintAsBitVect(m, 4, nBits=2048) for m in rand_mols]
     vals = [apply_to_valid(s, diversity, fps=fps) for s in smiles]
     return vals
 
@@ -150,6 +172,20 @@ def batch_SA(smiles, train_smiles=None, SA_model=None):
     vals = [apply_to_valid(s, SA_score, SA_model=SA_model) for s in smiles]
     return vals
 
+def batch_original_SA(smiles, train_smiles=None):
+    """
+    This metric checks whether a given molecule is easy to synthesize or not.
+    It is based on (although not completely equivalent to) the work of Ertl
+    and Schuffenhauer.
+
+    Ertl, P., & Schuffenhauer, A. (2009).
+    Estimation of synthetic accessibility score of drug-like molecules
+    based on molecular complexity and fragment contributions.
+    Journal of cheminformatics, 1(1), 8.
+    """
+    vals = [apply_to_valid(s, original_SA_score) for s in smiles]
+    return vals
+
 def batch_NPLikeliness(smiles, train_smiles=None, NP_model=None):
     """
     This metric computes the likelihood that a given molecule is
@@ -217,9 +253,9 @@ def batch_PCE(smiles, train_smiles=None, cnn=None):
         else:
             fsmiles.append('c1ccccc1')
             zeroindex.append(k)
-    vals = np.asarray(cnn.predict(fsmiles))
+    vals = np.asarray(model.predict(fsmiles))
     for k in zeroindex:
-        vals[k] = 0.0
+        vals[k] = 0
     vals = np.squeeze(np.stack(vals, axis=1))
     return vals
 
@@ -263,6 +299,40 @@ def batch_mp(smiles, train_smiles=None, cnn=None):
     for k in zeroindex:
         vals[k] = 0.0
     vals = np.squeeze(np.stack(vals, axis=1))
+    return vals
+
+def batch_det_vel(smiles, train_smiles=None, model=None, dens_model=None, bond_names=None):
+    """
+    Prediction of detonation velocity (and other things) with a scikit-learn model
+    """
+    if model == None:
+        raise ValueError('The det vel model was not properly loaded.')
+    if bond_names == None:
+            raise ValueError('The bond type names for the det vel prediction were not properly loaded.')
+
+    fsmiles = []
+    zeroindex = []
+    for k, sm in enumerate(smiles):
+        if verify_sequence(sm):
+            fsmiles.append(sm)
+        else:
+            fsmiles.append('c1ccccc1')
+            zeroindex.append(k)
+
+    fmols = [Chem.MolFromSmiles(smiles) for smiles in fsmiles]
+
+    X_Estate_CDS_SoB = Estate_CDS_SoB_featurizer(fmols, predefined_bond_types=bond_names, scaled=False, return_names=False)
+
+    vals = np.asarray(model.predict(X_Estate_CDS_SoB))/10.0
+
+    # include density prediction, and reweight by factor of 4
+    #if not (dens_model == None):
+    #    vals = vals + 4.0*np.asarray(dens_model.predict(X_Estate_CDS_SoB))
+
+    for k in zeroindex:
+        vals[k] = 0.0
+
+    vals = np.squeeze(vals)
     return vals
 
 #def batch_bp(smiles, train_smiles=None, gp=None):
@@ -395,7 +465,6 @@ def batch_mp(smiles, train_smiles=None, cnn=None):
 Loadings
 """
 
-
 def load_NP(filename=None):
     """
     Loads the parameters required by the naturalness
@@ -483,6 +552,18 @@ def load_mp():
     cnn_mp = KerasNN('mp')
     cnn_mp.load('../data/nns/mp.h5')
     return ('cnn', cnn_mp)
+
+def load_det_vel():
+    """
+    Loads the a scikit-learn model for det_vel and parameters for featurization (bond_names)
+    """
+    model = pickle.load(open('model_KRR_Estate_CDS_SoB_det_V_425_mols.pkl', 'rb'))
+    dens_model = pickle.load(open('model_KRR_Estate_CDS_SoB_density_425_mols.pkl', 'rb'))
+
+    bond_names = pickle.load(open('bond_names.pkl', 'rb'))
+
+    return [('model', model), ('bond_names', bond_names), ('dens_model', dens_model), ]
+
 
 #def load_bp():
 #    """
@@ -601,6 +682,14 @@ def logP(mol, train_smiles=None):
     except ValueError:
         val = 0
     return val
+
+def original_SA_score(mol):
+    import sascorer
+    score = sascorer.calculateScore(mol)
+
+    reversed_rescaled_score = (10.0 - score)/10.0
+
+    return reversed_rescaled_score
 
 def SA_score(mol, SA_model):
 
@@ -811,6 +900,7 @@ def metrics_loading():
     load['symmetry'] = lambda *args: None
     load['conciseness'] = lambda *args: None
     load['lipinski'] = lambda *args: None
+    load['original_synthesizability'] = lambda *args: None
     load['synthesizability'] = load_SA
     load['naturalness'] = load_NP
     load['chemical_beauty'] = load_beauty
@@ -824,6 +914,7 @@ def metrics_loading():
     load['pce'] = load_PCE
     load['bandgap'] = load_bandgap
     load['mp'] = load_mp
+    load['det_vel'] = load_det_vel
 #    load['bp'] = load_bp
 #    load['density'] = load_density
 #    load['pvap'] = load_pvap
@@ -850,6 +941,7 @@ def get_metrics():
     metrics['conciseness'] = batch_conciseness
     metrics['lipinski'] = batch_lipinski
     metrics['synthesizability'] = batch_SA
+    metrics['original_synthesizability'] = batch_original_SA
     metrics['naturalness'] = batch_NPLikeliness
     metrics['chemical_beauty'] = batch_beauty
     metrics['substructure_match_all'] = batch_substructure_match_all
@@ -862,6 +954,7 @@ def get_metrics():
     metrics['pce'] = batch_PCE
     metrics['bandgap'] = batch_bandgap
     metrics['mp'] = batch_mp
+    metrics['det_vel'] = batch_det_vel
 #    metrics['bp'] = batch_bp
 #    metrics['density'] = batch_density
 #    metrics['pvap'] = batch_pvap
